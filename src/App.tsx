@@ -6,6 +6,7 @@ function App() {
   return (
     <div style={{ minHeight: '100vh', padding: '2rem' }}>
       {/* Header Section */}
+      {/* New changes */}
       <header className="glass-panel" style={{ padding: '2rem', marginBottom: '2rem' }}>
         <h1 style={{ fontSize: '2rem', fontWeight: 600, marginBottom: '0.5rem' }}>
           Premium Products
