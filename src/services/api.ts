@@ -1,6 +1,6 @@
 import type { Product, PaginatedResponse, FetchProductsParams } from '../types/product';
 
-// Static mock data
+// Static mock data 
 const mockProducts: Product[] = Array.from({ length: 154 }, (_, i) => ({
   id: `prod-${i + 1}`,
   name: `Premium Product ${i + 1}`,
@@ -14,7 +14,7 @@ const mockProducts: Product[] = Array.from({ length: 154 }, (_, i) => ({
 export const api = {
   /**
    * Fetches products with pagination and optional filtering.
-   * WARNING: This API is intentionally flaky and slow!
+   * WARNING: This API is intentionally flaky and slow!!
    */
   fetchProducts: async (params: FetchProductsParams = {}): Promise<PaginatedResponse<Product>> => {
     const { page = 1, limit = 12, category, search } = params;
