@@ -32,7 +32,12 @@ export const api = {
     let filteredData = mockProducts;
 
     if (category) {
-      filteredData = filteredData.filter(p => p.category.toLowerCase() === category.toLowerCase());
+      if (Array.isArray(category)) {
+        const categorySet = new Set(category.map(c => c.toLowerCase()));
+        filteredData = filteredData.filter(p => categorySet.has(p.category.toLowerCase()));
+      } else {
+        filteredData = filteredData.filter(p => p.category.toLowerCase() === category.toLowerCase());
+      }
     }
 
     if (search) {

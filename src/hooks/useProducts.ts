@@ -13,7 +13,10 @@ export function useProducts(): UseProductsReturn {
   const getSearchParams = () => new URLSearchParams(window.location.search);
   
   const [page, setPage] = useState(() => Number(getSearchParams().get('page')) || 1);
-  const [category, setCategory] = useState(() => getSearchParams().get('category') || '');
+  const [selectedCategories, setSelectedCategories] = useState<string[]>(() => {
+    const catParam = getSearchParams().get('category');
+    return catParam ? catParam.split(',').filter(Boolean) : [];
+  });
   const [search, setSearch] = useState(() => getSearchParams().get('search') || '');
   const [debouncedSearch, setDebouncedSearch] = useState(search);
 
@@ -21,7 +24,7 @@ export function useProducts(): UseProductsReturn {
   useEffect(() => {
     const params = new URLSearchParams();
     if (page > 1) params.set('page', page.toString());
-    if (category) params.set('category', category);
+    if (selectedCategories.length > 0) params.set('category', selectedCategories.join(','));
     if (debouncedSearch) params.set('search', debouncedSearch);
     
     const newRelativePathQuery = window.location.pathname + '?' + params.toString();
@@ -29,14 +32,17 @@ export function useProducts(): UseProductsReturn {
     if (window.location.search !== '?' + params.toString() && window.location.search !== params.toString()) {
       window.history.pushState(null, '', newRelativePathQuery);
     }
-  }, [page, category, debouncedSearch]);
+  }, [page, selectedCategories, debouncedSearch]);
 
   // Handle browser back/forward buttons
   useEffect(() => {
     const handlePopState = () => {
       const params = getSearchParams();
       setPage(Number(params.get('page')) || 1);
-      setCategory(params.get('category') || '');
+      
+      const catParam = params.get('category');
+      setSelectedCategories(catParam ? catParam.split(',').filter(Boolean) : []);
+      
       setSearch(params.get('search') || '');
       setDebouncedSearch(params.get('search') || '');
     };
@@ -58,7 +64,15 @@ export function useProducts(): UseProductsReturn {
 
   const handleSetCategory = useCallback((newCategory: string) => {
     startTransition(() => {
-      setCategory(newCategory);
+      setSelectedCategories(prev => {
+        if (!newCategory) return []; // Clear all if empty string (All Categories)
+        
+        if (prev.includes(newCategory)) {
+          return prev.filter(c => c !== newCategory);
+        } else {
+          return [...prev, newCategory];
+        }
+      });
       setPage(1);
     });
   }, []);
@@ -78,12 +92,12 @@ export function useProducts(): UseProductsReturn {
     refetch,
     failureCount,
   } = useQuery({
-    queryKey: ['products', { page, category, search: debouncedSearch }],
+    queryKey: ['products', { page, category: selectedCategories, search: debouncedSearch }],
     queryFn: () =>
       api.fetchProducts({
         page,
         limit: ITEMS_PER_PAGE,
-        category: category || undefined,
+        category: selectedCategories.length > 0 ? selectedCategories : undefined,
         search: debouncedSearch || undefined,
       }),
     retry: 3,
@@ -95,17 +109,17 @@ export function useProducts(): UseProductsReturn {
     if (data && data.page < data.totalPages) {
       const nextPage = data.page + 1;
       queryClient.prefetchQuery({
-        queryKey: ['products', { page: nextPage, category, search: debouncedSearch }],
+        queryKey: ['products', { page: nextPage, category: selectedCategories, search: debouncedSearch }],
         queryFn: () =>
           api.fetchProducts({
             page: nextPage,
             limit: ITEMS_PER_PAGE,
-            category: category || undefined,
+            category: selectedCategories.length > 0 ? selectedCategories : undefined,
             search: debouncedSearch || undefined,
           }),
       });
     }
-  }, [data, category, debouncedSearch, queryClient]);
+  }, [data, selectedCategories, debouncedSearch, queryClient]);
 
   const {
     data: categoriesData,
@@ -129,7 +143,7 @@ export function useProducts(): UseProductsReturn {
     setCategory: handleSetCategory,
     setSearch: (val) => startTransition(() => setSearch(val)),
     retry: () => refetch(),
-    category,
+    selectedCategories,
     search,
     categories: categoriesData ?? [],
     loadingCategories: isLoadingCategories,

@@ -19,7 +19,7 @@ export interface PaginatedResponse<T> {
 export interface FetchProductsParams {
   page?: number;
   limit?: number;
-  category?: string;
+  category?: string | string[];
   search?: string;
 }
 
@@ -40,7 +40,7 @@ export interface UseProductsReturn extends UseProductsState {
   setCategory: (category: string) => void;
   setSearch: (search: string) => void;
   retry: () => void;
-  category: string;
+  selectedCategories: string[];
   search: string;
   categories: string[];
   loadingCategories: boolean;
@@ -70,7 +70,7 @@ export interface PaginationProps {
 }
 
 export interface CategoryFilterProps {
-  activeCategory: string;
+  activeCategories: string[];
   onCategoryChange: (category: string) => void;
   categories: string[];
   isLoading?: boolean;
