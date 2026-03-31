@@ -42,6 +42,8 @@ export interface UseProductsReturn extends UseProductsState {
   retry: () => void;
   category: string;
   search: string;
+  categories: string[];
+  loadingCategories: boolean;
 }
 
 // Component Prop Interfaces
@@ -70,6 +72,8 @@ export interface PaginationProps {
 export interface CategoryFilterProps {
   activeCategory: string;
   onCategoryChange: (category: string) => void;
+  categories: string[];
+  isLoading?: boolean;
   disabled?: boolean;
 }
 

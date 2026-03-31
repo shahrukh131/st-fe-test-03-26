@@ -57,4 +57,23 @@ export const api = {
       totalPages,
     };
   },
+
+  /**
+   * Fetches unique categories from the inventory.
+   */
+  fetchCategories: async (): Promise<string[]> => {
+    // Simulate delay
+    const delay = Math.floor(Math.random() * 1000) + 200;
+    await new Promise(resolve => setTimeout(resolve, delay));
+
+    // Simulate probabilistic failure (10% chance)
+    if (Math.random() < 0.1) {
+      throw new Error('Failed to fetch categories.');
+    }
+
+    // Get unique categories and normalize to capitalize if consistent UI is needed
+    // But here we'll just extract from mockProducts
+    const categories = Array.from(new Set(mockProducts.map(p => p.category)));
+    return categories.sort();
+  },
 };

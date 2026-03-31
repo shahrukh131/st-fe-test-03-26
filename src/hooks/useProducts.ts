@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { useQuery, keepPreviousData } from '@tanstack/react-query';
+import { useState, useEffect, useCallback } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { api } from '../services/api';
 import type { UseProductsReturn } from '../types/product';
 
@@ -10,9 +10,6 @@ export function useProducts(): UseProductsReturn {
   const [category, setCategory] = useState('');
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-
-  // Track previous filters to detect "hard" vs "soft" (pagination) transitions
-  const prevFiltersRef = useRef({ category: '', search: '' });
 
   // Debounce search input (300ms)
   useEffect(() => {
@@ -37,7 +34,6 @@ export function useProducts(): UseProductsReturn {
     isFetching,
     refetch,
     failureCount,
-    isPlaceholderData,
   } = useQuery({
     queryKey: ['products', { page, category, search: debouncedSearch }],
     queryFn: () =>
@@ -47,20 +43,18 @@ export function useProducts(): UseProductsReturn {
         category: category || undefined,
         search: debouncedSearch || undefined,
       }),
-    // Professional Strategy: 
-    // - If it's just a page change (same category/search), keep the data (smooth).
-    // - If category or search changed, drop the data (show skeletons immediately).
-    placeholderData: (category !== prevFiltersRef.current.category || debouncedSearch !== prevFiltersRef.current.search) 
-      ? undefined 
-      : keepPreviousData,
     retry: 3,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
   });
 
-  // Update ref AFTER the query setup so it's correct for the next change
-  useEffect(() => {
-    prevFiltersRef.current = { category, search: debouncedSearch };
-  }, [category, debouncedSearch]);
+  const {
+    data: categoriesData,
+    isLoading: isLoadingCategories,
+  } = useQuery({
+    queryKey: ['categories'],
+    queryFn: () => api.fetchCategories(),
+    staleTime: Infinity, // Categories are unlikely to change during the session
+  });
 
   return {
     products: data?.data ?? [],
@@ -71,13 +65,15 @@ export function useProducts(): UseProductsReturn {
     totalPages: data?.totalPages ?? 0,
     total: data?.total ?? 0,
     isRetrying: isFetching && failureCount > 0,
-    // hasStaleData means we are currently showing a placeholder while fetching the next page
-    hasStaleData: isPlaceholderData || (!!data && isError),
+    // hasStaleData means we are currently showing an error but have some data from before
+    hasStaleData: !!data && isError,
     setPage,
     setCategory: handleSetCategory,
     setSearch,
     retry: () => refetch(),
     category,
     search,
+    categories: categoriesData ?? [],
+    loadingCategories: isLoadingCategories,
   };
 }
