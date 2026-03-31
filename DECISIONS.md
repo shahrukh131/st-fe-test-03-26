@@ -1,70 +1,62 @@
-# Candidate Decisions & Notes
+# Technical Decisions & Strategy
 
-Please use this file to briefly outline your technical choices and the rationale behind them.
+This document outlines the technical choices, architectural patterns, and senior-level optimizations implemented for the e-commerce product catalog.
 
-## 1. State Management & Architecture
-*Why did you structure your state the way you did? Which patterns did you choose for handling the flaky API requests, loading states, and error handling?*
+## 1. Architectural Strategy & State Management
 
-### Custom `useProducts` Hook with TanStack Query (Professional Strategy)
+### URL-Driven Component State
+**Decision**: Synchronized all primary application states (`page`, `category`, `search`) with the browser's URL search parameters.
+- **Rationale**: Enables deep-linking, shareable filtered views, and full support for browser navigation (back/forward buttons). This provides a production-grade user experience where the UI remains consistent after page refreshes.
 
-Initially, I implemented a custom `useEffect`-based data fetching hook, then pivoted to **TanStack Query** for more robust management. 
+### MainLayout Pattern
+**Decision**: Decoupled the structural layout (headers, sidebars, drawers) from the feature-specific logic using a `MainLayout` component.
+- **Rationale**: Improves code maintainability and scalability. `App.tsx` now functions as a "Controller" and "Orchestrator," while the layout components remain reusable and focused solely on presentation.
 
-**Resilience Features Preserved & Enhanced:**
-- **Conditional Stale Data (Dual-Loading Strategy)**: To match modern e-commerce standards, the hook distinguishes between a "Page Change" and a "Filter Change":
-    - **Filter/Search Change**: Immediately clears the results and shows **shimmer skeletons**. This confirms to the user that their new intent (e.g., searching for a different category) has been registered.
-    - **Pagination Change**: Keeps the **stale data** visible (dimmed at 55% opacity) while the next page loads. This provides a smoother browsing experience without jarring layout shifts.
-- **Exponential Backoff**: Still using `BASE_DELAY * 2^attempt` logic via TanStack's `retryDelay`.
-- **Debounced Search**: Maintained at 300ms to optimize API load.
+### Data Fetching with TanStack Query
+**Decision**: Utilized TanStack Query for all data fetching and caching needs.
+- **Rationale**: Simplifies complex async logic, such as automatic retries with exponential backoff and localized loading/error states.
 
-**Architecture Benefits**:
-- **Declarative Resilience**: Used `placeholderData` as a callback function and the `isPlaceholderData` property to handle the complex state transitions with minimal boilerplate.
-- **Centralized request management** and reduction in potential race condition bugs.
+## 2. Performance & Perceived Latency
 
-## 2. Trade-offs and Omissions
-*What did you intentionally leave out given the constraints of a take-home assignment? If you had more time, what would you prioritize next?*
+### Predictive Prefetching
+**Decision**: Implemented background prefetching for the *next* page of products.
+- **Rationale**: Reduces perceived latency. When a user is on page 1, the data for page 2 is already being fetched in the background, making pagination transitions near-instant.
+
+### React 19 Transitions
+**Decision**: Leveraged `useTransition` for state updates that trigger data fetching.
+- **Rationale**: Keeps the UI fluid and responsive even during network-heavy operations like typing in the search bar or swiping categories.
+
+## 3. UI/UX Optimization
+
+### Skeleton-First Response
+**Decision**: Prioritized immediate visual feedback through custom skeletons on all page and filter changes.
+- **Rationale**: To provide the clearest system feedback, showing a skeleton is more effective than holding onto stale/outdated data from a previous filter or page.
+- **Optimization**: Skeletons were refined to match the exact aspect ratio and card layout of the products, eliminating layout shifts (CLS).
+
+### Responsive Sidebar/Drawer
+**Decision**: Implemented a dual navigation strategy with a persistent sidebar for desktop and a slide-out drawer for mobile.
+- **Rationale**: Desktop users benefit from a permanent filter control, while mobile users get a thumb-friendly, full-screen interaction that saves valuable screen real estate.
+
+## 4. Trade-offs and Omissions
 
 ### Intentional Trade-offs
-- **No external state management library** — React's built-in `useState`/`useEffect` is sufficient for this scope. React Query would add value at 3+ endpoints.
-- **Category list is hardcoded** — matches the known API categories. In production, I'd fetch categories dynamically.
-- **No unit tests** — given time constraints, I prioritized robust error handling and polished UX over test coverage.
-- **Used `category` field as "brand"** — the API lacks a `brand` field, so category is displayed in the brand position per Figma layout.
+- **No Global Store (Redux/Zustand)**: Native React state and URL synchronization are sufficient and more performant for this scope.
+- **No unit tests**: Prioritized architectural depth, performance optimizations, and visual polish over test coverage due to time constraints.
+- **Deterministic Mock Data**: Derive categories and products from the mock source. In production, this would be a real, paginated backend API.
 
-### If I Had More Time
-1. **React Testing Library tests** — especially for the retry logic, pagination edge cases, and error states.
-2. **Optimistic caching per page** — cache previously-fetched pages so back-navigation is instant.
-3. **Virtual scrolling** for very large datasets.
-4. **URL state synchronization** — sync page/category/search to URL params so users can bookmark/share filtered views.
-5. **Service Worker** for offline resilience.
+### High-Priority Next Steps
+1. **React Testing Library**: Focusing on the retry logic, pagination edge cases, and accessibility verification.
+2. **React Error Boundaries**: Wrap components for granular error recovery.
+3. **Optimistic Caching**: Cache all previously-visited filter results for instant back-navigation.
+4. **Service Worker**: For offline Resilience and image caching.
 
-## 3. AI Usage
-*How did you utilize AI tools (ChatGPT, Copilot, Cursor, etc.) during this assignment? Provide a brief summary of how they assisted you.*
+## 5. AI Usage Summary
 
-I used **Claude (Antigravity)** as a pair-programming assistant for this assignment:
+During the development of this catalog, I utilized **Claude (Antigravity)** as a specialized pair-programming and implementation tool. While the AI assisted with code generation and design translation, all critical architectural and strategic decisions were human-led:
 
-- **Architecture planning** — initially discussed custom `useEffect` logic for resilience, then pivoted to **TanStack Query** for better long-term maintainability and out-of-the-box handling of caching and retries.
-- **Code migration** — aided in translating the previous `useEffect` logic into the `useQuery` configuration, ensuring all previous features (debounce, backoff, stale data) were mapped correctly.
-- **Figma interpretation** — since the Figma design showed Image → Brand → Name → Price, the AI helped map the API's `category` field to the "brand" position.
-- **Decision validation** — used AI to pressure-test trade-offs (e.g., "should I use React Query?" → decided no, single endpoint doesn't justify the dependency).
-
-**Key human decisions maintained:**
-- Architectural pattern selection (custom hook over library)
-- UX decisions (non-blocking errors, stale data preservation)
-- Accessibility requirements (ARIA labels, focus management, semantic HTML)
-- Design system integration (reusing existing glassmorphism tokens)
-
-## 4. Edge Cases Identified
-*Did you notice any edge cases or bugs that you didn't have time to fix? Please list them here.*
-
-### Handled Edge Cases
-- **Race conditions** — multiple rapid page/filter changes don't corrupt state (AbortController + request ID).
-- **Image load failures** — graceful fallback to SVG placeholder icon.
-- **Low stock / Out of stock** — visual badges on product cards.
-- **Empty search results** — dedicated empty state with helpful message.
-- **Pagination boundary** — Previous/Next buttons properly disabled at page 1 and last page.
-- **Category + search combo** — both filters work together correctly, results summary reflects both.
-
-### Known Limitations
-- **No retry limit feedback** — the error banner doesn't tell users "3 retries failed." Could add attempt count.
-- **No request timeout** — relies on the API's own delay (500-2500ms). In production, I'd add a fetch timeout wrapper.
-- **Pagination doesn't persist across filter changes** — intentionally resets to page 1, but could preserve if the new total supports it.
-- **Mock API randomness** — prices and categories are randomly assigned on each page load (due to `Math.random()` in the mock). In production, this would be deterministic.
+**Key Human-Led Decisions:**
+- **Strategy & Governance**: Directed the pivot from a simple pill-filter to the more scalable **MainLayout** and **Sidebar/Drawer** pattern.
+- **State Management**: Architected the **URL Synchronization** strategy to ensure persistence and shareability.
+- **Performance Engineering**: Defined and initiated the **Predictive Prefetching** logic to optimize perceived latency.
+- **UX Policy**: Enforced a **Skeleton-First** loading policy (over stale data) to provide immediate, definitive user feedback.
+- **Accessibility & SEM**: Ensured all components maintain high standards for keyboard navigation and SEO-friendly semantic HTML.
