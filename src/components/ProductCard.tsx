@@ -2,6 +2,8 @@ import { useState, memo } from 'react';
 import { motion } from 'framer-motion';
 import type { ProductCardProps } from '../types/product';
 
+import { getCategoryTheme } from '../utils/theme';
+
 function ProductCardComponent({ product, index }: ProductCardProps) {
   const [imageError, setImageError] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
@@ -12,6 +14,8 @@ function ProductCardComponent({ product, index }: ProductCardProps) {
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(product.price);
+
+  const theme = getCategoryTheme(product.category);
 
   return (
     <motion.article
@@ -79,8 +83,8 @@ function ProductCardComponent({ product, index }: ProductCardProps) {
 
       {/* Card Content */}
       <div className="pt-3.5 px-4 pb-[18px] flex flex-col flex-1">
-        {/* Brand / Category */}
-        <span className="text-[0.7rem] font-semibold text-slate-600 uppercase tracking-[0.08em] mb-1.5">
+        {/* Brand / Category Badge */}
+        <span className={`inline-flex items-center w-fit text-[0.65rem] font-bold px-2.5 py-0.5 rounded border uppercase tracking-[0.08em] mb-2.5 ${theme.bg} ${theme.text} ${theme.border}`}>
           {product.category}
         </span>
 
