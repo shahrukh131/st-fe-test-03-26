@@ -1,62 +1,51 @@
-# Technical Decisions & Strategy
+# Candidate Decisions & Notes
 
-This document outlines the technical choices, architectural patterns, and senior-level optimizations implemented for the e-commerce product catalog.
+Please use this file to briefly outline your technical choices and the rationale behind them.
 
-## 1. Architectural Strategy & State Management
+## 1. State Management & Architecture
+*Why did you structure your state the way you did? Which patterns did you choose for handling the flaky API requests, loading states, and error handling?*
 
-### URL-Driven Component State
-**Decision**: Synchronized all primary application states (`page`, `category`, `search`) with the browser's URL search parameters.
-- **Rationale**: Enables deep-linking, shareable filtered views, and full support for browser navigation (back/forward buttons). This provides a production-grade user experience where the UI remains consistent after page refreshes.
+I used **URL-driven state synchronization** — `page`, `category`, and `search` are all derived from and synced back to `URLSearchParams` in the `useProducts` hook. This enables deep-linking, shareable filtered views, and native browser back/forward navigation without needing a global store.
 
-### MainLayout Pattern
-**Decision**: Decoupled the structural layout (headers, sidebars, drawers) from the feature-specific logic using a `MainLayout` component.
-- **Rationale**: Improves code maintainability and scalability. `App.tsx` now functions as a "Controller" and "Orchestrator," while the layout components remain reusable and focused solely on presentation.
+For the flaky API (20% failure rate, 500–2500ms latency), **TanStack Query** handles all server state with:
+- **Automatic retries**: 3 attempts with exponential backoff (`Math.min(1000 * 2^attempt, 30000)`)
+- **Loading states**: Skeleton-first approach — every filter/page change renders purpose-built skeleton cards immediately rather than displaying stale data from a previous query
+- **Error handling**: Layered strategy — a dismissible `ErrorBanner` when stale data exists (so users can still browse), and a full-page error state with a retry button when no data is available at all
+- **React 19 `useTransition`** wraps all state-changing operations, keeping the UI responsive during network-heavy operations
 
-### Data Fetching with TanStack Query
-**Decision**: Utilized TanStack Query for all data fetching and caching needs.
-- **Rationale**: Simplifies complex async logic, such as automatic retries with exponential backoff and localized loading/error states.
+No global store (Redux/Zustand) was needed — URL params + TanStack Query's cache cover all state needs.
 
-## 2. Performance & Perceived Latency
+## 2. Trade-offs and Omissions
+*What did you intentionally leave out given the constraints of a take-home assignment? If you had more time, what would you prioritize next?*
 
-### Predictive Prefetching
-**Decision**: Implemented background prefetching for the *next* page of products.
-- **Rationale**: Reduces perceived latency. When a user is on page 1, the data for page 2 is already being fetched in the background, making pagination transitions near-instant.
+**Intentionally left out:**
+- **Unit/integration tests** — Prioritized architectural depth, performance optimizations (prefetching, transitions), and visual polish
+- **React Error Boundaries** — Errors are handled via TanStack Query's built-in error states instead
+- **SSR** — Client-side SPA via Vite is sufficient for a catalog demo
 
-### React 19 Transitions
-**Decision**: Leveraged `useTransition` for state updates that trigger data fetching.
-- **Rationale**: Keeps the UI fluid and responsive even during network-heavy operations like typing in the search bar or swiping categories.
+**If I had more time, I'd prioritize (in order):**
+1. **Price Range Filtering**: Implementing a multi-thumb slider for price filtering alongside the category filter
+2. **React Testing Library** tests targeting retry logic, pagination edge cases, and accessibility
+3. **React Error Boundaries** for granular component-level recovery
+4. **Optimistic caching** of previously-visited filter/page combinations for instant back-navigation
+5. **Service Worker** for offline resilience and image caching
 
-## 3. UI/UX Optimization
+## 3. AI Usage
+*How did you utilize AI tools (ChatGPT, Copilot, Cursor, etc.) during this assignment? Provide a brief summary of how they assisted you.*
 
-### Skeleton-First Response
-**Decision**: Prioritized immediate visual feedback through custom skeletons on all page and filter changes.
-- **Rationale**: To provide the clearest system feedback, showing a skeleton is more effective than holding onto stale/outdated data from a previous filter or page.
-- **Optimization**: Skeletons were refined to match the exact aspect ratio and card layout of the products, eliminating layout shifts (CLS).
+I used **Claude (Antigravity)** as a pair-programming tool. It assisted with code generation for components, translating design specs into pixel-perfect CSS, and implementing the mobile bottom-sheet drawer with Framer Motion.
 
-### Responsive Sidebar/Drawer
-**Decision**: Implemented a dual navigation strategy with a persistent sidebar for desktop and a slide-out drawer for mobile.
-- **Rationale**: Desktop users benefit from a permanent filter control, while mobile users get a thumb-friendly, full-screen interaction that saves valuable screen real estate.
+All critical architectural decisions were human-led:
+- URL synchronization strategy for state persistence
+- The `MainLayout` / Sidebar / Drawer structural pattern
+- Skeleton-first loading policy (over stale data display)
+- Predictive prefetching of the next page
+- Multi-category toggle filtering approach
 
-## 4. Trade-offs and Omissions
+## 4. Edge Cases Identified
+*Did you notice any edge cases or bugs that you didn't have time to fix? Please list them here.*
 
-### Intentional Trade-offs
-- **No Global Store (Redux/Zustand)**: Native React state and URL synchronization are sufficient and more performant for this scope.
-- **No unit tests**: Prioritized architectural depth, performance optimizations, and visual polish over test coverage due to time constraints.
-- **Deterministic Mock Data**: Derive categories and products from the mock source. In production, this would be a real, paginated backend API.
-
-### High-Priority Next Steps
-1. **React Testing Library**: Focusing on the retry logic, pagination edge cases, and accessibility verification.
-2. **React Error Boundaries**: Wrap components for granular error recovery.
-3. **Optimistic Caching**: Cache all previously-visited filter results for instant back-navigation.
-4. **Service Worker**: For offline Resilience and image caching.
-
-## 5. AI Usage Summary
-
-During the development of this catalog, I utilized **Claude (Antigravity)** as a specialized pair-programming and implementation tool. While the AI assisted with code generation and design translation, all critical architectural and strategic decisions were human-led:
-
-**Key Human-Led Decisions:**
-- **Strategy & Governance**: Directed the pivot from a simple pill-filter to the more scalable **MainLayout** and **Sidebar/Drawer** pattern.
-- **State Management**: Architected the **URL Synchronization** strategy to ensure persistence and shareability.
-- **Performance Engineering**: Defined and initiated the **Predictive Prefetching** logic to optimize perceived latency.
-- **UX Policy**: Enforced a **Skeleton-First** loading policy (over stale data) to provide immediate, definitive user feedback.
-- **Accessibility & SEM**: Ensured all components maintain high standards for keyboard navigation and SEO-friendly semantic HTML.
+- **URL history spam**: Every filter/page change pushes to history, making the back button tedious. `replaceState` might be better for search input changes.
+- **Mock data non-determinism**: `Math.random()` for prices/stock/categories means products aren't consistent across page loads.
+- **No "empty results" state**: When a search/filter returns zero products, the grid just renders empty with no dedicated messaging.
+- **Pagination reset UX**: Changing category auto-resets to page 1 without explicit user indication that a reset occurred.
